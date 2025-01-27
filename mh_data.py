@@ -12,8 +12,7 @@ import numpy as np
 
 def dataSplit(ds_name, h_init=0.05, s=500):
     transform = Compose([
-        ToTensor(),
-        Lambda(lambda x: torch.cat([x, x, x], dim=0) if x.shape[0] == 1 else x),
+        base_transform(),
         torchvision.models.VGG16_BN_Weights.IMAGENET1K_V1.transforms()
     ])
     
@@ -26,9 +25,11 @@ def dataSplit(ds_name, h_init=0.05, s=500):
     elif ds_name == 'svhn':
         data = SVHN(root='./data', split='train', download=True, transform=transform)
 
-    # data = random_split(data, [1000, len(data) - 1000])[0]  ##  For debugging...
+    # data = random_split(data, [2000, len(data) - 2000])[0]  ##  For debugging...
     print('Total number of samples:', len(data))
     n_labelled = int(len(data) * h_init)
+    if n_labelled < 2000:
+        s = n_labelled // 2
     print('Number of labelled samples:', n_labelled)
     indices = sample(data, n_labelled)
     unlabelled_indices = list(set(range(len(data))) - set(indices))
@@ -78,6 +79,12 @@ def sample(dataset, n, device="cuda", num_workers=4):
     print('No of sampled indices:', len(indices))
     return indices
     
+def base_transform():
+    return Compose([
+        ToTensor(),
+        Lambda(lambda x: torch.cat([x, x, x], dim=0) if x.shape[0] == 1 else x),
+    ])
+        
 
 if __name__ == '__main__':
     ds_unlabelled, ds_fine_tuning, ds_optimization = dataSplit('mnist')
