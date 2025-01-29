@@ -13,13 +13,15 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from time import time
+import os
 
-def experiment(ds_name, model_names, lrs, h_init=0.01, s=1000, batch_size=1024, epochs=10, device='cuda'):
+def experiment(ds_name, alpha, model_names, lrs, h_init=0.01, s=1000, batch_size=1024, epochs=10, device='cuda'):
     ##  Data preparation...
     t0 = time()
     ds_unlabelled, ds_fine_tuning, ds_optimization = mhd.dataSplit(ds_name, h_init=h_init, s=s)
     t1 = time()
-    t_data = t1 - t0
+    t_data = round(t1 - t0, 4)
+    print(f'Data preparation done! It took {t_data} seconds.')
     m = len(ds_unlabelled) + len(ds_fine_tuning) + len(ds_optimization)
     ##  Fine-tuning...
     t0 = time()
@@ -30,22 +32,24 @@ def experiment(ds_name, model_names, lrs, h_init=0.01, s=1000, batch_size=1024, 
         models.append((model, transform))
         print(f'Training loss: {train_loss}, Validation loss: {val_loss}')
     t1 = time()
-    t_fine_tuning = t1 - t0
+    t_fine_tuning = round(t1 - t0, 4)
+    print(f'Fine-tuning done! It took {t_fine_tuning} seconds.')
     ##  Prediction on the optimization set...
     print('Predicting on the optimization set...')
     
     df_pred_optimization = predict(models, ds_optimization, batch_size=batch_size, device=device)
 
-    print(df_pred_optimization)
+    # print(df_pred_optimization)
     print('Predicting on the optimization set done!')
     
     ##  MILP optimization...
     print('Optimizing...')
     t0 = time()
-    effort_optimization, w_list, x_list = mho.mh_optimize(df_pred_optimization, alpha=1)
+    effort_optimization, w_list, x_list = mho.mh_optimize(df_pred_optimization, alpha=alpha)
     t1 = time()
-    t_optimization = t1 - t0
-    print('Effort on the optimization set:', effort / len(df_pred_optimization))
+    t_optimization = round(t1 - t0, 4)
+    print(f'Optimization done! It took {t_optimization} seconds.')
+    print('Effort on the optimization set:', effort_optimization / len(df_pred_optimization))
     print('w_list:', w_list)
 
     ##  Prediction on the unlabelled set...
@@ -53,14 +57,15 @@ def experiment(ds_name, model_names, lrs, h_init=0.01, s=1000, batch_size=1024, 
     t0 = time()
     df_pred_unlabelled = predict(models, ds_unlabelled, batch_size=batch_size, device=device)
     t1 = time()
-    t_labelling = t1 - t0
+    t_labelling = round(t1 - t0, 4)
+    print(f'Labelling done! It took {t_labelling} seconds.')
     df_pred_unlabelled['z'] = (df_pred_unlabelled[[f'p_l_{i}' for i in range(len(models))]].nunique(axis=1) == 1).astype(int)
     df_pred_unlabelled['b'] = (df_pred_unlabelled[[f'p_l_{i}' for i in range(len(models))] + ['y']].nunique(axis=1) == 1).astype(int)
     theta_list = [df_pred_unlabelled[f'p_theta_{i}'] for i in range(len(models))]
     f = np.sum([w_list[i] * theta_list[i] for i in range(len(models))], axis=0) - 1
     df_pred_unlabelled['f'] = f
-    effort_unlabelled = len(df_pred_unlabelled) - np.sum(df_pred_unlabelled['z'])  ##  Unnormalized effort
-    accuracy_unlabelled = np.sum(df_pred_unlabelled['b']) + effort_unlabelled  ##  Unnormalized accuracy
+    effort_unlabelled = len(df_pred_unlabelled) - np.sum(df_pred_unlabelled['z'] * (f>0))  ##  Unnormalized effort
+    accuracy_unlabelled = np.sum(df_pred_unlabelled['b'] * (f>0)) + effort_unlabelled  ##  Unnormalized accuracy
     print('Effort on the unlabelled set:', effort_unlabelled)
     print('Accuracy on the unlabelled set:', accuracy_unlabelled)
     effort_total = (len(ds_fine_tuning) + len(ds_optimization) + effort_unlabelled) / m
@@ -68,9 +73,20 @@ def experiment(ds_name, model_names, lrs, h_init=0.01, s=1000, batch_size=1024, 
     print('Total effort:', effort_total)
     print('Total accuracy:', accuracy_total)
     ##  Output...
-    output_name = f'results_milp_{ds_name}_{"_".join(model_names)}.csv'
-    
+    output_name = os.path.join('outputs', f'results_milp_{"_".join(model_names)}.csv')
+    columns = ['dataset', 'size', 'models', 'h_init', 's', 'batch_size', 'epochs', 't_data', 't_fine_tuning', 't_optimization', 't_labelling', 'effort_optimization', 'effort_unlabelled', 'accuracy_unlabelled', 'effort_total', 'accuracy_total']
+    values = [ds_name, m, model_names, h_init, s, batch_size, epochs, t_data, t_fine_tuning, t_optimization, t_labelling, effort_optimization/len(ds_optimization), effort_unlabelled/len(ds_unlabelled), accuracy_unlabelled/len(ds_unlabelled), effort_total, accuracy_total]
+    if os.path.exists(output_name):
+        df_output = pd.read_csv(output_name)
+        df_output.loc[len(df_output)] = values
+    else:
+        os.makedirs('outputs', exist_ok=True)
+        df_output = pd.DataFrame(columns=columns)
+        df_output.loc[0] = values
+    df_output.to_csv(output_name, index=False)
+    print('Output saved at:', output_name)
 
+        
 
 def predict(models, ds, batch_size=1024, device='cuda'):
     pred_cols = [f'p_l_{i}' for i in range(len(models))] + [f'p_theta_{i}' for i in range(len(models))] + ['y']
@@ -78,7 +94,7 @@ def predict(models, ds, batch_size=1024, device='cuda'):
     for i, (model, transform) in enumerate(models):
         model.eval()
         ds.transform = transform
-        dl = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=2)
+        dl = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=4)
         pred_l = []
         pred_theta = []
         y_list = []
@@ -101,4 +117,13 @@ def predict(models, ds, batch_size=1024, device='cuda'):
     
 
 if __name__ == '__main__':
-    experiment('mnist', ['vgg', 'resnet', 'vit'], [1e-3, 1e-3, 1e-3], h_init=0.01, epochs=25)
+    datasets = ['cifar10', 'fashionmnist', 'svhn', 'mnist']
+    h_values = [0.01, 0.05, 0.15, 0.25, 0.35, 0.45]
+    alpha = 1
+    repeats = 5
+    for ds_name in datasets:
+        for h_init in h_values:
+            for i in range(repeats):
+                print(f'Experiment on {ds_name} with h_init={h_init} and repeat={i+1}...')
+                experiment(ds_name, alpha, ['vgg', 'resnet', 'vit'], [1e-3, 1e-3, 1e-3], h_init=h_init, s=500, epochs=50)
+    

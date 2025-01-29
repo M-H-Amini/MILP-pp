@@ -28,7 +28,7 @@ def dataSplit(ds_name, h_init=0.05, s=500):
     # data = random_split(data, [2000, len(data) - 2000])[0]  ##  For debugging...
     print('Total number of samples:', len(data))
     n_labelled = int(len(data) * h_init)
-    if n_labelled < 2000:
+    if n_labelled < 1000:
         s = n_labelled // 2
     print('Number of labelled samples:', n_labelled)
     indices = sample(data, n_labelled)
@@ -70,9 +70,10 @@ def sample(dataset, n, device="cuda", num_workers=4):
     indices = []
     for i in range(n_clusters):
         idx = np.where(kmeans.labels_ == i)[0].tolist()
-        idx = np.random.choice(idx, n // n_clusters, replace=False).tolist()
-        indices.extend(idx)
-    while len(indices) < n:
+        if len(idx) >= n // n_clusters:  ##  If the cluster has more samples than required...
+            idx = np.random.choice(idx, n // n_clusters, replace=False).tolist()
+            indices.extend(idx)
+    while len(set(indices)) < n:
         idx = np.random.choice(len(X), 1, replace=False)
         if not idx in indices:
             indices.append(idx)
