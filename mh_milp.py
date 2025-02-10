@@ -15,7 +15,7 @@ from tqdm import tqdm
 from time import time
 import os
 
-def experiment(ds_name, alpha, model_names, lrs, h_init=0.01, s=1000, batch_size=1024, epochs=10, device='cuda'):
+def experiment(ds_name, alpha, model_names, lrs, h_init=0.01, s=1000, batch_size=1024, epochs=10, device='cuda', output_name=None):
     ##  Data preparation...
     t0 = time()
     ds_unlabelled, ds_fine_tuning, ds_optimization = mhd.dataSplit(ds_name, h_init=h_init, s=s)
@@ -73,9 +73,10 @@ def experiment(ds_name, alpha, model_names, lrs, h_init=0.01, s=1000, batch_size
     print('Total effort:', effort_total)
     print('Total accuracy:', accuracy_total)
     ##  Output...
-    output_name = os.path.join('outputs', f'results_milp_{"_".join(model_names)}.csv')
-    columns = ['dataset', 'size', 'models', 'h_init', 's', 'batch_size', 'epochs', 't_data', 't_fine_tuning', 't_optimization', 't_labelling', 'effort_optimization', 'effort_unlabelled', 'accuracy_unlabelled', 'effort_total', 'accuracy_total']
-    values = [ds_name, m, model_names, h_init, s, batch_size, epochs, t_data, t_fine_tuning, t_optimization, t_labelling, effort_optimization/len(ds_optimization), effort_unlabelled/len(ds_unlabelled), accuracy_unlabelled/len(ds_unlabelled), effort_total, accuracy_total]
+    if output_name is None:
+        output_name = os.path.join('outputs', f'results_milp_{"_".join(model_names)}.csv')
+    columns = ['dataset', 'size', 'models', 'h_init', 's', 'batch_size', 'epochs', 'w', 't_data', 't_fine_tuning', 't_optimization', 't_labelling', 'effort_optimization', 'effort_unlabelled', 'accuracy_unlabelled', 'effort_total', 'accuracy_total']
+    values = [ds_name, m, model_names, h_init, s, batch_size, epochs, w_list, t_data, t_fine_tuning, t_optimization, t_labelling, effort_optimization/len(ds_optimization), effort_unlabelled/len(ds_unlabelled), accuracy_unlabelled/len(ds_unlabelled), effort_total, accuracy_total]
     if os.path.exists(output_name):
         df_output = pd.read_csv(output_name)
         df_output.loc[len(df_output)] = values
@@ -114,16 +115,25 @@ def predict(models, ds, batch_size=1024, device='cuda'):
     
     return df_pred
 
-    
 
 if __name__ == '__main__':
-    datasets = ['cifar10', 'fashionmnist', 'svhn', 'mnist']
+    # datasets = ['svhn', 'mnist', 'fashionmnist', 'cifar10'][::-1]
+    datasets = ['svhn', 'mnist', 'fashionmnist', 'cifar10']
+    # datasets = ['svhn', 'mnist'][::-1]
+    # datasets = ['svhn']
+    # datasets = ['cifar10', 'fashionmnist']
     h_values = [0.01, 0.05, 0.15, 0.25, 0.35, 0.45]
     alpha = 1
-    repeats = 5
+    repeats = 2
+    epochs = 100
+    model_names = ['resnet', 'vit', 'vgg']
+    lrs = [1e-3, 1e-3, 1e-3]
+    # model_names = ['resnet']
+    # lrs = [1e-3]
+    output_name = os.path.join('outputs', f'results_milp_{"_".join(model_names)}_{"_".join(datasets)}.csv')
     for ds_name in datasets:
         for h_init in h_values:
             for i in range(repeats):
                 print(f'Experiment on {ds_name} with h_init={h_init} and repeat={i+1}...')
-                experiment(ds_name, alpha, ['vgg', 'resnet', 'vit'], [1e-3, 1e-3, 1e-3], h_init=h_init, s=500, epochs=50)
+                experiment(ds_name, alpha, model_names, lrs, h_init=h_init, s=500, epochs=epochs, output_name=output_name)
     

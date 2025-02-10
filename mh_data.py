@@ -74,7 +74,7 @@ def sample(dataset, n, device="cuda", num_workers=4):
             idx = np.random.choice(idx, n // n_clusters, replace=False).tolist()
             indices.extend(idx)
     while len(set(indices)) < n:
-        idx = np.random.choice(len(X), 1, replace=False)
+        idx = np.random.choice(len(X), 1, replace=False)[0]
         if not idx in indices:
             indices.append(idx)
     print('No of sampled indices:', len(indices))
