@@ -41,8 +41,8 @@ def _finetune(model_name, ds, num_classes=10, train_split=0.8, batch_size=256, p
     ##  Data preparation...
     ds.transform = transform
     ds_train, ds_val = random_split(ds, [int(len(ds) * train_split), len(ds) - int(len(ds) * train_split)])
-    dl_train = DataLoader(ds_train, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-    dl_val = DataLoader(ds_val, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    dl_train = DataLoader(ds_train, batch_size=batch_size, shuffle=True, num_workers=num_workers, persistent_workers=True)
+    dl_val = DataLoader(ds_val, batch_size=batch_size, shuffle=False, num_workers=num_workers, persistent_workers=True)
     ##  Training...
     optimizer = Adam(model.parameters(), lr=lr)
     criterion = CrossEntropyLoss()
