@@ -16,7 +16,7 @@ from time import time
 import matplotlib.pyplot as plt
 import os
 
-def experiment(ds_name, alpha, model_names, lrs, h_init=0.01, s=1000, batch_size=1024, epochs=10, n_tries=1, device='cuda', output_name=None):
+def experiment(ds_name, num_classes, alpha, model_names, lrs, h_init=0.01, s=1000, batch_size=1024, epochs=10, n_tries=1, device='cuda', output_name=None):
     if output_name is None:
         output_name = os.path.join('outputs', f'results_milp_{"_".join(model_names)}.csv')
     ##  Data preparation...
@@ -31,7 +31,7 @@ def experiment(ds_name, alpha, model_names, lrs, h_init=0.01, s=1000, batch_size
     models = []
     for i, model_name in enumerate(model_names):
         print(f'Fine-tuning {model_name}...')
-        model, transform, train_loss, val_loss = mhm.finetune(model_name, ds_fine_tuning, batch_size=batch_size, lr=lrs[i], n_epochs=epochs, device=device, n_tries=n_tries)
+        model, transform, train_loss, val_loss = mhm.finetune(model_name, ds_fine_tuning, num_classes=num_classes, batch_size=batch_size, lr=lrs[i], n_epochs=epochs, device=device, n_tries=n_tries)
         models.append((model, transform))
         print(f'Training loss: {train_loss}, Validation loss: {val_loss}')
     t1 = time()
@@ -148,12 +148,14 @@ if __name__ == '__main__':
     # datasets = ['svhn', 'mnist', 'fashionmnist', 'cifar10']
     # datasets = ['mnist', 'fashionmnist']
     # datasets = ['cifar10', 'svhn']
-    datasets = ['fashionmnist', 'cifar10', 'svhn', 'mnist']
+    # datasets = ['fashionmnist', 'cifar10', 'svhn', 'mnist']
     # datasets = ['svhn', 'mnist'][::-1]
     # datasets = ['svhn']
     # datasets = ['cifar10', 'fashionmnist']
+    datasets = ['hu_cifar10', 'hu_imagenet']
+    n_classes = 2
     # h_values = [0.01, 0.05, 0.15, 0.25, 0.35, 0.45]
-    h_values = [0.15, 0.25]
+    h_values = [0.15, 0.25, 0.35]
     alpha = 1.
     repeats = 2
     epochs = 25
@@ -171,5 +173,5 @@ if __name__ == '__main__':
         for h_init in h_values:
             for i in range(repeats):
                 print(f'Experiment on {ds_name} with alpha={alpha} and h_init={h_init} and repeat={i+1}...')
-                experiment(ds_name, alpha, model_names, lrs, h_init=h_init, s=500, epochs=epochs, batch_size=batch_size, n_tries=n_tries, output_name=output_name)
+                experiment(ds_name, n_classes, alpha, model_names, lrs, h_init=h_init, s=500, epochs=epochs, batch_size=batch_size, n_tries=n_tries, output_name=output_name)
     

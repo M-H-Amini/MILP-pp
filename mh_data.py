@@ -8,7 +8,7 @@ from tqdm import tqdm
 from sklearn.decomposition import PCA
 from sklearn.cluster import DBSCAN, KMeans
 import numpy as np
-
+from mh_custom_dataset import MHSyntheticDataset
 
 def dataSplit(ds_name, h_init=0.05, s=500):
     transform = Compose([
@@ -24,6 +24,11 @@ def dataSplit(ds_name, h_init=0.05, s=500):
         data = FashionMNIST(root='./data', train=True, download=True, transform=transform)
     elif ds_name == 'svhn':
         data = SVHN(root='./data', split='train', download=True, transform=transform)
+    elif ds_name == 'hu_cifar10':
+        data = MHSyntheticDataset(root='./Hu_Cifar10', transform=transform)
+    elif ds_name == 'hu_imagenet':
+        data = MHSyntheticDataset(root='./Hu_Imagenet', transform=transform)
+
 
     # data = random_split(data, [2000, len(data) - 2000])[0]  ##  For debugging...
     print('Total number of samples:', len(data))
@@ -88,5 +93,7 @@ def base_transform():
         
 
 if __name__ == '__main__':
-    ds_unlabelled, ds_fine_tuning, ds_optimization = dataSplit('mnist')
+    # ds_unlabelled, ds_fine_tuning, ds_optimization = dataSplit('svhn')
+    # ds_unlabelled, ds_fine_tuning, ds_optimization = dataSplit('hu_cifar10')
+    ds_unlabelled, ds_fine_tuning, ds_optimization = dataSplit('hu_imagenet')
     
