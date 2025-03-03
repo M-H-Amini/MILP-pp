@@ -8,7 +8,7 @@ The scarcity of accurately labelled data remains a major challenge in deep learn
 ### Prerequisites
 - Docker
 - Python 3.7 or higher
-- Required Python packages (see requirements.txt if available)
+- Required Python packages (see requirements.txt)
 
 ### Using Docker
 Build and run the project container with GPU support using the provided script:
