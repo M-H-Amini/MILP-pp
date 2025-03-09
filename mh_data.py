@@ -30,7 +30,7 @@ def dataSplit(ds_name, h_init=0.05, s=500):
         data = MHSyntheticDataset(root='./Hu_Imagenet', transform=transform)
 
 
-    # data = random_split(data, [2000, len(data) - 2000])[0]  ##  For debugging...
+    # data = random_split(data, [15000, len(data) - 15000])[0]  ##  For debugging...
     print('Total number of samples:', len(data))
     n_labelled = int(len(data) * h_init)
     if n_labelled < 1000:

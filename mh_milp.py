@@ -16,7 +16,7 @@ from time import time
 import matplotlib.pyplot as plt
 import os
 
-def experiment(ds_name, num_classes, alpha, model_names, lrs, h_init=0.01, s=1000, batch_size=1024, epochs=10, n_tries=1, device='cuda', output_name=None):
+def experiment(ds_name, num_classes, alpha, model_names, lrs, h_init=0.01, s=1000, batch_size=1024, epochs=10, n_tries=1, aggregate='all', device='cuda', output_name=None):
     if output_name is None:
         output_name = os.path.join('outputs', f'results_milp_{"_".join(model_names)}.csv')
     ##  Data preparation...
@@ -26,6 +26,7 @@ def experiment(ds_name, num_classes, alpha, model_names, lrs, h_init=0.01, s=100
     t_data = round(t1 - t0, 4)
     print(f'Data preparation done! It took {t_data} seconds.')
     m = len(ds_unlabelled) + len(ds_fine_tuning) + len(ds_optimization)
+    n = len(model_names)
     ##  Fine-tuning...
     t0 = time()
     models = []
@@ -48,7 +49,7 @@ def experiment(ds_name, num_classes, alpha, model_names, lrs, h_init=0.01, s=100
     ##  MILP optimization...
     print('Optimizing...')
     t0 = time()
-    effort_optimization, w_list, x_list = mho.mh_optimize(df_pred_optimization, alpha=alpha)
+    effort_optimization, w_list, x_list = mho.mh_optimize(df_pred_optimization, alpha=alpha, aggregate=aggregate)
     t1 = time()
     t_optimization = round(t1 - t0, 4)
     print(f'Optimization done! It took {t_optimization} seconds.')
@@ -62,8 +63,12 @@ def experiment(ds_name, num_classes, alpha, model_names, lrs, h_init=0.01, s=100
     t1 = time()
     t_labelling = round(t1 - t0, 4)
     print(f'Labelling done! It took {t_labelling} seconds.')
-    df_pred_unlabelled['z'] = (df_pred_unlabelled[[f'p_l_{i}' for i in range(len(models))]].nunique(axis=1) == 1).astype(int)
-    df_pred_unlabelled['b'] = (df_pred_unlabelled[[f'p_l_{i}' for i in range(len(models))] + ['y']].nunique(axis=1) == 1).astype(int)
+    if aggregate == 'all':
+        df_pred_unlabelled['z'] = (df_pred_unlabelled[[f'p_l_{i}' for i in range(len(models))]].nunique(axis=1) == 1).astype(int)
+        df_pred_unlabelled['b'] = (df_pred_unlabelled[[f'p_l_{i}' for i in range(len(models))] + ['y']].nunique(axis=1) == 1).astype(int)
+    elif aggregate == 'majority':
+        df_pred_unlabelled['z'] = df_pred_unlabelled.apply(lambda row: int(row[[f'p_l_{i}' for i in range(n)]].value_counts().max() > n/2), axis=1).astype(int)
+        df_pred_unlabelled['b'] = (df_pred_unlabelled[[f'p_l_{i}' for i in range(n)]].mode(axis=1)[0] == df_pred_unlabelled['y']).astype(int)
     theta_list = [df_pred_unlabelled[f'p_theta_{i}'] for i in range(len(models))]
     f = np.sum([w_list[i] * theta_list[i] for i in range(len(models))], axis=0) - 1
     df_pred_unlabelled['f'] = f
@@ -151,27 +156,29 @@ if __name__ == '__main__':
     # datasets = ['fashionmnist', 'cifar10', 'svhn', 'mnist']
     # datasets = ['svhn', 'mnist'][::-1]
     # datasets = ['svhn']
-    # datasets = ['cifar10', 'fashionmnist']
-    datasets = ['hu_cifar10', 'hu_imagenet']
-    n_classes = 2
-    # h_values = [0.01, 0.05, 0.15, 0.25, 0.35, 0.45]
-    h_values = [0.15, 0.25, 0.35]
-    alpha = 1.
-    repeats = 2
-    epochs = 25
+    datasets = ['fashionmnist', 'cifar10', 'svhn', 'mnist']
+    # datasets = ['hu_cifar10', 'hu_imagenet']
+    n_classes = 10
+    h_values = [0.01, 0.05, 0.15, 0.25, 0.35, 0.45]
+    # h_values = [0.05]
+    alpha = 0.99
+    repeats = 3
+    epochs = 100
     batch_size = 256
     n_tries = 3  ##  Number of tries for fine-tuning
-    model_names = ['resnet', 'resnet', 'vgg']
-    lrs = [3e-3, 1e-3, 3e-4]
+    model_names = ['resnet', 'vgg', 'resnet']
+    # model_names = ['resnet', 'vgg', 'vit']
+    lrs = [3e-3, 1e-3, 1e-3]
     # model_names = ['resnet', 'vgg']
     # lrs = [3e-3, 1e-3]
-    
+    s = 500
     # model_names = ['resnet']
     # lrs = [3e-3]
-    output_name = os.path.join('outputs', f'results_milp_{alpha}_{"_".join(model_names)}_{"_".join(datasets)}.csv')
+    aggregate = 'majority'
+    output_name = os.path.join('outputs', f'results_milp_{alpha}_{aggregate}_{"_".join(model_names)}_{"_".join(datasets)}.csv')
     for ds_name in datasets:
         for h_init in h_values:
             for i in range(repeats):
                 print(f'Experiment on {ds_name} with alpha={alpha} and h_init={h_init} and repeat={i+1}...')
-                experiment(ds_name, n_classes, alpha, model_names, lrs, h_init=h_init, s=500, epochs=epochs, batch_size=batch_size, n_tries=n_tries, output_name=output_name)
+                experiment(ds_name, n_classes, alpha, model_names, lrs, h_init=h_init, s=s, epochs=epochs, batch_size=batch_size, n_tries=n_tries, aggregate=aggregate, output_name=output_name)
     
